@@ -16,15 +16,19 @@ import com.qjx.blockchain.qblockchain.cli.Main;
 public class Inital implements Runnable {
     private String listenport;
     private String conPort;
-    public Inital( String listenport,String conPort){
+    private BlockServices blockServices;
+    private TransactionsPool tp;
+    public Inital(String listenport, String conPort, BlockServices blockServices, TransactionsPool tp){
         this.listenport =listenport;
         this.conPort =conPort;
+        this.blockServices = blockServices;
+        this.tp = tp;
     }
     @Override
     public void run() {
         synchronized (this){
             Wallet wallet = Wallet.loadMyWallet();
-            BlockController bc = new BlockController(Main.blockServices,wallet,Main.tp);
+            P2PController bc = new P2PController(blockServices,wallet,tp);
             P2PServer p2pServer = new P2PServer(bc);
             P2PClient p2pClient = new P2PClient(bc);
             int p2pPort = Integer.parseInt(listenport);
@@ -35,6 +39,15 @@ public class Inital implements Runnable {
                 p2pClient.connectToPeer(conPort);
             }
         }
-
     }
+    public static void main(String[] args) {
+        BlockServices blockServices =new BlockServices(BlockChain.loadBlockChain().getBlockchain());
+        TransactionsPool tp = new TransactionsPool(blockServices.getBlockChain());
+       // Inital a = new Inital("52112","ws://localhost:52111",blockServices,tp);
+        Inital a = new Inital("52111",null,blockServices,tp);
+        Thread xx = new Thread(a);
+        xx.start();
+    }
+
+
 }

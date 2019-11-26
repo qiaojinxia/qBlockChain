@@ -111,8 +111,8 @@ public class WalletStruts {
         if(StringUtils.isEmpty(address))
             throw  new IllegalArgumentException("valid address error,address must not be null!");
         //
-        if(address.length != 34)
-            throw  new IllegalArgumentException("valid address error,address length " + address.length+ " is incorrect;!");
+//        if(address.length != 34)
+//            throw  new IllegalArgumentException("valid address error,address length " + address.length+ " is incorrect;!");
         //将输入地址解码
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();

@@ -15,7 +15,7 @@ import java.util.*;
  */
 public class Transaction {
 
-    public final static BigDecimal SUBSIDY = new BigDecimal( 7.0);
+    public  static Float SUBSIDY = null;
     /**
      * 交易的Hash
      */
@@ -99,9 +99,9 @@ public class Transaction {
         txInputs.add(txInput);
         TXOutput txOutput =null;
         if(Arrays.equals(to,"yaoyao".getBytes()))
-             txOutput = TXOutput.newTxOutPut(SUBSIDY);
+             txOutput = TXOutput.newTxOutPut(new BigDecimal(SUBSIDY));
         else
-             txOutput = TXOutput.newTxOutPut(SUBSIDY, to);
+             txOutput = TXOutput.newTxOutPut(new BigDecimal(SUBSIDY), to);
         //添加 交易输出
         List txOutputs = new ArrayList<TXOutput>();
         txOutputs.add(txOutput);

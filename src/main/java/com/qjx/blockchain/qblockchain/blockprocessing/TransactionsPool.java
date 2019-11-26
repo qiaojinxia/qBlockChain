@@ -10,12 +10,22 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.ListIterator;
 
 
 /**
  * Created by caomaoboy 2019-11-04
  **/
 public class TransactionsPool {
+
+    public boolean isAddEvent() {
+        return addEvent;
+    }
+    public void setAddEvent(boolean addEvent) {
+        this.addEvent = addEvent;
+    }
+
+    private volatile boolean addEvent = false;
     private Integer size;
     public void setTranSactionPool(List<Transaction> tranSactionPool) {
         TranSactionPool = tranSactionPool;
@@ -28,9 +38,10 @@ public class TransactionsPool {
      */
     private List<Transaction> TranSactionPool;
     private List<Block> blocChain;
-    private List<Integer> Beentake;
+
     public final static Logger logger = LoggerFactory.getLogger(TransactionsPool.class);
     public List<Transaction> getTransactions(Integer size){
+
         if(StringUtils.isEmpty(TranSactionPool)
         || TranSactionPool.size() == 0){
             logger.info("Has no trans to get!");
@@ -38,13 +49,37 @@ public class TransactionsPool {
         }
         List<Transaction> _transBuff =new ArrayList<Transaction>();
         //迪比翼留给矿工挖矿时添加
-        _transBuff.add(null);
+        if(TranSactionPool.get(0) != null)
+            _transBuff.add(null);
         for(int i = 0;i<TranSactionPool.size() ;i++){
+            //已加入当前区块的不返回
+            if(null != TranSactionPool.get(i) && isContains(TranSactionPool.get(i).getTxId()))
+                continue;
             _transBuff.add(TranSactionPool.get(i));
         }
         return _transBuff;
     }
 
+
+    /**
+     * 判断交易是否存在 在区块链中
+     * @return
+     */
+    public boolean isContains(byte[] txid){
+        ListIterator<Block> blockIter = blocChain.listIterator();
+        while(blockIter.hasNext()){
+            Block blockchainNext = blockIter.next();
+            ListIterator<Transaction> transIter= blockchainNext.getData().listIterator();
+            while(transIter.hasNext()){
+                Transaction transNext = transIter.next();
+                if(Arrays.equals(transNext.getTxId(),txid)){
+                    return true;
+                }
+
+            }
+        }
+        return false;
+    }
     /**
      * 返回所有交易集合
      * @return
@@ -110,4 +145,5 @@ public class TransactionsPool {
         this.TranSactionPool =new ArrayList<Transaction>();
         this.size = 0 ;
     }
+
 }

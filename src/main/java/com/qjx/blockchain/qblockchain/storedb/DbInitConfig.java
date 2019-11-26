@@ -1,4 +1,4 @@
-package storedb;
+package com.qjx.blockchain.qblockchain.storedb;
 
 
 import org.iq80.leveldb.DB;
@@ -12,7 +12,6 @@ import java.io.IOException;
  * 配置启用哪个db，部分Windows机器用不了rocksDB，可以选择levelDB
  * Created by caomaoboy 2019-11-16
  */
-@Configuration
 public class DbInitConfig {
     private final static  String dbfile ="./blockchaindb" ;
     public DB levelDB() throws IOException {

@@ -1,7 +1,6 @@
 package com.qjx.blockchain.qblockchain.basemodel;
 
-import com.qjx.blockchain.qblockchain.blockprocessing.BlockAlgorithm;
-import com.qjx.blockchain.qblockchain.blockprocessing.BlockServices;
+import com.qjx.blockchain.qblockchain.blockprocessing.ProofOfWork;
 import com.qjx.blockchain.qblockchain.commonutils.ObjectUtils;
 import com.qjx.blockchain.qblockchain.commonutils.CryptoSecurityUtils.Sha256;
 
@@ -26,11 +25,12 @@ public class Block implements Serializable {
 
     //当前区块索引
 
-    public Integer getNonce() {
-        return this.nonce;
+
+    public Long getNonce() {
+        return nonce;
     }
 
-    public void setNonce(Integer nonce) {
+    public void setNonce(Long nonce) {
         this.nonce = nonce;
     }
 
@@ -57,18 +57,20 @@ public class Block implements Serializable {
     //区块链生成的时间
     private long timestamp;
 
-    public Integer getDifficulty() {
-        return difficulty;
-    }
 
-    public void setDifficulty(Integer difficulty) {
-        this.difficulty = difficulty;
-    }
-
-    private Integer difficulty;
     //挖矿的工作量证明 计算Hash的次数
-    private Integer nonce;
+    private Long nonce;
 
+    public String getnBits() {
+        return nBits;
+    }
+
+    public void setnBits(String nBits) {
+        this.nBits = nBits;
+    }
+
+    //当前块的计算难度
+    private String nBits;
     //默克尔树
     private MerkleTree MerKleRoot;
 
@@ -104,13 +106,13 @@ public class Block implements Serializable {
      */
     public String gethash() {
         if(!ObjectUtils.notEmpty(this.index) && !ObjectUtils.notEmpty(this.previousHash) && !ObjectUtils.notEmpty(this.data)
-                 &&!ObjectUtils.notEmpty(this.nonce) &&!ObjectUtils.notEmpty(this.difficulty))
+                 &&!ObjectUtils.notEmpty(this.nonce)  &&!ObjectUtils.notEmpty(this.nBits))
             throw  new IllegalArgumentException("Cannot get hash every args must be init ");
         if(!ObjectUtils.notEmpty(MerKleRoot)){
             hashTransactions();
         }
         //System.out.println("计算hash" +"index:"+index +"version:"  +version +"prehash:" +previousHash +"timestap:" + timestamp +"梅克尔:" + MerKleRoot.getRoot().getHash() +"NOCE:" + nonce + "难度:"+difficulty);
-        return calculateHash(this.index,version,this.previousHash,this.timestamp,MerKleRoot.getRoot().getHash(),this.nonce,this.difficulty);
+        return calculateHash(this.index,version,this.previousHash,this.timestamp,MerKleRoot.getRoot().getHash(),this.nonce ,this.nBits);
     }
 
     /**
@@ -121,11 +123,10 @@ public class Block implements Serializable {
      * @param data 数据
      * @return 当前hash
      */
-    private String calculateHash(BigInteger index,String version, String previousHash, long timestamp, String data,long nonce,Integer difficulty) {
+    private String calculateHash(BigInteger index,String version, String previousHash, long timestamp, String data,long nonce,String nbits) {
         StringBuilder builder = new StringBuilder(index.toString());
-        builder.append(previousHash).append(data).append(nonce).append(version).append(difficulty).append(timestamp);
-        System.out.println(Sha256.getSHA256(builder.toString()));
-        return Sha256.getSHA256(builder.toString());
+        builder.append(previousHash).append(data).append(nonce).append(version).append(timestamp).append(nbits);
+        return Sha256.getSHA256(Sha256.getSHA256(builder.toString()));
     }
 
     /**
@@ -179,10 +180,9 @@ public class Block implements Serializable {
      * @param data 存储交易信息
      * @param nonce 工作证明
      */
-    public Block(BigInteger index , String previousHash, List<Transaction> data,Integer difficulty, Integer nonce,long timestamp){
+    public Block(BigInteger index , String previousHash, List<Transaction> data, Long nonce,Long timestamp){
         this.index = index;
         this.previousHash = previousHash;
-        this.difficulty = difficulty;
         this.data = data;
         this.nonce =nonce;
         this.timestamp = timestamp;
@@ -192,7 +192,7 @@ public class Block implements Serializable {
      *
      * @return 判断是否创世区块
      */
-    public boolean isGenesisBlock(){
+    public boolean isgenesisBlock(){
         //如果是创世区块 那么 只有一笔输入交易 和输出交易  并且输入交易的前一笔交易为null
         return this.previousHash.startsWith("767be8afab82c0");
     }
@@ -208,7 +208,8 @@ public class Block implements Serializable {
         List<Transaction> firsttrans = new ArrayList<Transaction>();
         firsttrans.add(myfirst);
         //传入block
-        Block firstBlock = new Block(new BigInteger("1") ,"767be8afab82c0c91c1941effc71f809de1acfded90d7219f7f762909fbe40c9",firsttrans,7,0,1572914406);
+        Block firstBlock = new Block(new BigInteger("0") ,"767be8afab82c0c91c1941effc71f809de1acfded90d7219f7f762909fbe40c9",firsttrans,new Long(0),new Long("1574383821000"));
+        firstBlock.setnBits(ProofOfWork.decodeBits(ProofOfWork.nInitHard));
         firstBlock.hashTransactions();
         return firstBlock;
     }
@@ -219,10 +220,10 @@ public class Block implements Serializable {
      * @return
      */
     public boolean isBlockValid(List<Block> block) throws Exception {
-        if(this.isGenesisBlock())
+        if(this.isgenesisBlock())
             return true;
         //验证一些列参数是否为空
-        if(!ObjectUtils.notEmpty(this.previousHash) || !ObjectUtils.notEmpty(this.MerKleRoot) || !ObjectUtils.notEmpty(this.difficulty )
+        if(!ObjectUtils.notEmpty(this.previousHash) || !ObjectUtils.notEmpty(this.MerKleRoot) || !ObjectUtils.notEmpty(this.nBits )
                || !ObjectUtils.notEmpty(this.data)  || !ObjectUtils.notEmpty(this.index) || !ObjectUtils.notEmpty(this.nonce)
         || !ObjectUtils.notEmpty(this.timestamp))
             return false;
@@ -239,9 +240,10 @@ public class Block implements Serializable {
 
 
     public static boolean isProofValid(Block block){
-        if(block.isGenesisBlock())
+        if(block.isgenesisBlock())
             return true;
-        return BlockAlgorithm.isHashValid(block.gethash(), BlockServices.diffculty);
+        //todo
+        return ProofOfWork.isHashValid(block.gethash(),block.getnBits());
     }
 
 }

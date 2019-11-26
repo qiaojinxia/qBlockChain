@@ -1,15 +1,11 @@
 package com.qjx.blockchain.qblockchain.cli;
 
 import com.qjx.blockchain.qblockchain.basemodel.*;
-import com.qjx.blockchain.qblockchain.blockprocessing.BlockServices;
-import com.qjx.blockchain.qblockchain.blockprocessing.WalletServices;
-import com.qjx.blockchain.qblockchain.commonutils.CryptoSecurityUtils.HexUtil;
-import com.qjx.blockchain.qblockchain.p2pnetwork.BlockController;
+import com.qjx.blockchain.qblockchain.commonutils.ObjectUtils;
 import com.qjx.blockchain.qblockchain.p2pnetwork.Inital;
 import org.apache.commons.cli.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
-import sun.misc.BASE64Decoder;
 
 import java.math.BigDecimal;
 import java.util.Iterator;
@@ -23,7 +19,6 @@ public class CLI {
     private Options options = new Options();
     public CLI(String[] args) {
         this.args = args;
-
         Option helpCmd = Option.builder("h").desc("show help").build();
         options.addOption(helpCmd);
         Option address = Option.builder("address").hasArg(true).desc("Source wallet address").build();
@@ -31,13 +26,16 @@ public class CLI {
         Option sendFrom = Option.builder("from").hasArg(true).desc("Source wallet address").build();
         Option sendTo = Option.builder("to").hasArg(true).desc("Destination wallet address").build();
         Option sendAmount = Option.builder("amount").hasArg(true).desc("Amount to send").build();
+        Option listenPort = Option.builder("listenport").hasArg(true).desc("listen block info").build();
+        Option seedport = Option.builder("seedport").hasArg(true).desc("begin by seed port").build();
+        options.addOption(listenPort);
+        options.addOption(seedport);
         options.addOption(address);
         options.addOption(name);
         options.addOption(sendFrom);
         options.addOption(sendTo);
         options.addOption(sendAmount);
     }
-
     /**
      * 验证入参
      *
@@ -48,8 +46,6 @@ public class CLI {
             help();
         }
     }
-
-
     /**
      * 命令行解析入口
      */
@@ -78,8 +74,7 @@ public class CLI {
                     String sendTo = cmd.getOptionValue("to");
                     String sendAmount = cmd.getOptionValue("amount");
                     if (StringUtils.isBlank(sendFrom) ||
-                            StringUtils.isBlank(sendTo) ||
-                            !NumberUtils.isDigits(sendAmount)) {
+                            StringUtils.isBlank(sendTo) ) {
                         help();
                     }
                     this.send(sendFrom, sendTo, BigDecimal.valueOf(Long.parseLong(sendAmount)));
@@ -94,6 +89,11 @@ public class CLI {
                 case "printchain":
                     this.printChain();
                     break;
+                case "p2pserver":
+                    String listenPort = cmd.getOptionValue("listenport");
+                    String seedPort = cmd.getOptionValue("seedport");
+                    this.p2pwWork(listenPort,seedPort);
+                    break;
                 case "h":
                     this.help();
                     break;
@@ -105,11 +105,13 @@ public class CLI {
         }
     }
 
-    private void getBalance(String walletname)  {
+    private void getBalance(String address)  {
+        if(!ObjectUtils.notEmpty(address))
+            throw  new IllegalArgumentException("parse ars error!");
         Wallet wallet = Wallet.loadMyWallet();
         String balance = null;
         try {
-            balance = Main.blockServices.getBalcnce(wallet.getByWalletName(walletname).getAddress()).toString();
+            balance = Main.blockServices.getBalcnce(address.getBytes()).toString();
         } catch (Exception e) {
             System.out.println("Failed to reach any valid utxo!");
             e.printStackTrace();
@@ -120,6 +122,8 @@ public class CLI {
     }
 
     private void send(String sendFrom, String sendTo, BigDecimal valueOf) {
+        if(!ObjectUtils.notEmpty(sendFrom) || !ObjectUtils.notEmpty(sendTo) || !ObjectUtils.notEmpty(valueOf))
+            throw  new IllegalArgumentException("parse ars error!");
         Wallet wallet = Wallet.loadMyWallet();
         System.out.println(sendFrom+"  "+sendTo);
         if(null ==wallet.getByWalletName(sendFrom)){
@@ -135,9 +139,9 @@ public class CLI {
             e.printStackTrace();
             return;
         }
+        Main.tp.setAddEvent(true);
         System.out.println("转账已加入交易池 会在下一次区块产生时完成!"+ valueOf.toString());
     }
-
     private void printAddresses() {
 
     }
@@ -148,12 +152,17 @@ public class CLI {
      * @param conPort
      */
     private void p2pwWork(String listenPort,String conPort)  {
-        Inital inital = new Inital(listenPort,conPort);
+        if(!ObjectUtils.notEmpty(listenPort))
+            throw  new IllegalArgumentException("parse ars error!");
+        Inital inital = new Inital(listenPort,conPort,Main.blockServices,Main.tp);
         Thread p2pThread = new Thread(inital);
         p2pThread.start();
     }
 
+
     private void createWallet(String name) throws Exception {
+        if(!ObjectUtils.notEmpty(name))
+            throw  new IllegalArgumentException("parse ars error!");
         Wallet wallet = Wallet.loadMyWallet();
         if(null !=wallet.getByWalletName(name))
         System.out.println("\033[35;4m" + "当前钱包名已存在!" + "\033[0m");
@@ -166,6 +175,8 @@ public class CLI {
 
     }
     private void createBlockchain(String createblockchainAddress) {
+        if(!ObjectUtils.notEmpty(createblockchainAddress))
+            throw  new IllegalArgumentException("parse ars error!");
         Wallet wallet = Wallet.loadMyWallet();
         if(null == wallet.getByWalletName(createblockchainAddress))
             throw new IllegalArgumentException("钱包地址不存,请先去创建钱包~");
@@ -175,6 +186,7 @@ public class CLI {
             Block gen= Main.blockServices.Mineral(wallet.getByWalletName(createblockchainAddress).getAddress(),"system award",
                     packageblock);
             Main.blockServices.addBlock(gen);
+            Main.blockServices.setAddblockChainEvent(true);
         } catch (Exception e) {
             e.printStackTrace();
             return;
@@ -188,7 +200,7 @@ public class CLI {
      */
     private void help() {
         System.out.println("Usage:");
-        System.out.println("  createwallet -name [Name] - Generates a new key-pair and saves it into the wallet file");
+        System.out.println("  createwallet name [Name] - Generates a new key-pair and saves it into the wallet file");
         System.out.println("  printaddresses - print all wallet address");
         System.out.println("  getbalance -address ADDRESS - Get balance of ADDRESS");
         System.out.println("  createblockchain -address ADDRESS - Create a blockchain and send genesis block reward to ADDRESS");

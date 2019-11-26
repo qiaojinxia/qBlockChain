@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * Created by caomaoboy 2019-11-05
  **/
-public class BlockController {
+public class P2PController {
     //钱包服务
     private Wallet wallet;
     //用于存放其他人的钱包
@@ -53,8 +53,8 @@ public class BlockController {
     private TransactionsPool transactionPool;
     //打包数量
     private static final Integer PACKAGE_NUM = 100;
-    public final static Logger logger = LoggerFactory.getLogger(BlockController.class);
-    public BlockController(BlockServices BlockServices,Wallet wallet,TransactionsPool transactionPool){
+    public final static Logger logger = LoggerFactory.getLogger(P2PController.class);
+    public P2PController(BlockServices BlockServices, Wallet wallet, TransactionsPool transactionPool){
         this.wallet = wallet;
         this.BlockServices = BlockServices;
         this.transactionPool =transactionPool;
@@ -81,11 +81,19 @@ public class BlockController {
      */
     public List<Transaction> getAllTransation() {
         List<Transaction> trans = transactionPool.getallTrans();
-        if(!ObjectUtils.notEmpty(transactionPool.getallTrans()))
+        if(!ObjectUtils.notEmpty(trans))
             return null;
         return trans;
     }
 
+
+    /**
+     * 设置交易
+     * @return
+     */
+    public void setAllTransation(List<Transaction> txs) {
+        transactionPool.setTranSactionPool(txs);
+    }
     /**
      *
      * @param trans 添加交易

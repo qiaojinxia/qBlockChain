@@ -13,12 +13,10 @@ import org.java_websocket.server.WebSocketServer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 /**
  * Created by jack on 2018/4/1.
  */
-@Component
 public class P2PServer {
     public final static Logger logger = LoggerFactory.getLogger(P2PServer.class);
 
@@ -28,17 +26,17 @@ public class P2PServer {
 
     private ProcessingServer processingServer;
 
-    public P2PServer(BlockController bc) {
+    public P2PServer(P2PController bc) {
         this.processingServer = new ProcessingServer(bc);
         //this.processingServer.setSockets(sockets);
     }
-
     public void initP2PServer(int port) {
         final WebSocketServer socketServer = new WebSocketServer(new InetSocketAddress(port)) {
             public void onOpen(WebSocket webSocket, ClientHandshake clientHandshake) {
                 //将当前客户端加入websocket池
                 //processeServer.getSockets().add(this);
                 processingServer.getSockets().add(webSocket);
+
             }
 
             public void onClose(WebSocket webSocket, int i, String s, boolean b) {
@@ -56,9 +54,11 @@ public class P2PServer {
                 processingServer.getSockets().remove(webSocket);
             }
 
+            @Override
             public void onStart() {
-
+                System.out.println("WebSocket Server端启动...");
             }
+
         };
         socketServer.start();
         System.out.println("listening websocket p2p port on: " + port);

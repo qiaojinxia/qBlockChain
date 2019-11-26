@@ -3,6 +3,7 @@ package com.qjx.blockchain.qblockchain.p2pnetwork;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.qjx.blockchain.qblockchain.basemodel.*;
+import com.qjx.blockchain.qblockchain.cli.Main;
 import com.qjx.blockchain.qblockchain.commonutils.ObjectUtils;
 import org.java_websocket.WebSocket;
 import org.slf4j.Logger;
@@ -14,8 +15,33 @@ import java.util.*;
  * Created by caomaoboy 2019-11-05
  **/
 public class ProcessingServer {
+    class listenEvents implements Runnable{
+        @Override
+        public void run() {
+            logger.info("开始监听全网广播事件!");
+                while(true){
+                    if(Main.tp.isAddEvent()){
+                        broatcast(responseTransaction());
+                        logger.info("监听到交易池添加时间准备全网广播!");
+                        Main.tp.setAddEvent(false);
+                    }
+                    if(Main.blockServices.isAddblockChainEvent()){
+                        logger.info("监听到区块更新添加时间准备全网广播!");
+                        broatcast(responseLatestBlockMsg());
+                        Main.blockServices.setAddblockChainEvent(false);
+                    }
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+        }
+    }//p2pserver -listenport 52112 -seedport ws://localhost:52111
+
     private List<WebSocket> socket;
-    private BlockController blockController;
+    private P2PController blockController;
     //查询最新的区块
     public final static int QUERY_LATEST_BLOCK = 0;
     //查询整个区块链
@@ -36,11 +62,15 @@ public class ProcessingServer {
     public final static int RESPONSE_WALLET = 8;
     //处理最后一个区块
     public final static int  RESPONSE_LATEST_BLOCK=9;
+    //处理最后一个区块
+    public final static int  RESPONSE_All_BLOCK=10;
 
-    public ProcessingServer(BlockController blockController){
+    public ProcessingServer(P2PController blockController){
         this.blockController =blockController;
-         this.setSockets(new ArrayList<WebSocket>());
-
+        this.setSockets(new ArrayList<WebSocket>());
+        listenEvents le = new listenEvents();
+        Thread thread1 = new Thread(le);
+        thread1.start();
     }
     public List<WebSocket> getSockets() {
         return sockets;
@@ -56,7 +86,7 @@ public class ProcessingServer {
     private List<WebSocket> sockets;
 
     public  void handleBlockChainResponse(String message,List<WebSocket> socket){
-        if(!ObjectUtils.notEmpty(message))
+        if(!ObjectUtils.notEmpty(message) || message.equals("[]"))
             return;
         List<Block> receiverBlockChain = JSON.parseArray(message,Block.class);
         Collections.sort(receiverBlockChain, new Comparator<Block>() {
@@ -66,35 +96,71 @@ public class ProcessingServer {
                 return b1.getIndex().compareTo(b2.getIndex());
             }
         });
+        //记录对应
+        boolean falg =false;
         //找到最后一块区块
         Block lastestBlockReceived = receiverBlockChain.get(receiverBlockChain.size() -1);
         //找到本地最后一块区块
         Block lastestBlock =blockController.getLastestBlock();
+        List<Block> replaceBlockChian =null;
         //如果接收到的区块链长度 大于当前区块链
         if(lastestBlockReceived.getIndex().compareTo(lastestBlock.getIndex())==1){
-            //如果本地最后一块区块大于的hash 是 收到的最后一块区块的前一块
-            if(lastestBlock.gethash().equals(lastestBlockReceived.getPreviousHash())){
-                logger.info("将接收到的新区块加入到本地区块链中~");
-                //将区块链存储到本地区块中 加入时需要验证
-                if(blockController.addBlock(lastestBlockReceived)){
-                    //加入并且验证通过 向所有连接节点广播这条消息
-                    broatcast(responseLatestBlockMsg());
-                    //否则收到的节点就1个创世区块的话
-                }else if(receiverBlockChain.size() ==1){
-                    logger.info("查询所有通讯节点上的区块链~");
-                    //向所有连接节点发送查询
-                    broatcast(queryBlockChainMsg());
-                }else{
-                    //用长的list替换 当前区块
-                    blockController.replaceChain(receiverBlockChain);
+            //如果 接收到的区块 在  我现在这条链的 6个节点之内 就接收
+            List<Block> block = blockController.getBlockChain();
+            for(int i=0;i<6;i++){
+                replaceBlockChian = new ArrayList<Block>();
+               Block  _lastblock = block.get(block.size()-1);
+                for(int m=0;m<receiverBlockChain.size();m++){
+                    replaceBlockChian.add(receiverBlockChain.get(receiverBlockChain.size() -1 -m ));
+                    if(receiverBlockChain.get(receiverBlockChain.size() -1 -m ).getPreviousHash().equals(_lastblock.gethash())){
+                        falg = true;
+                        break;
+                    }
+                }
+                if(falg)
+                    break;
+                else {//如果当前区块没有在收到的区块里
+                    blockController.getBlockChain().remove(_lastblock);
+                    if(blockController.getBlockChain().size()==0)
+                        break;
                 }
             }
+            if(falg){
+
+                Collections.sort(replaceBlockChian, new Comparator<Block>() {
+                    @Override
+                    public int compare(Block b1, Block b2) {
+                        //从小到大排序
+                        return b1.getIndex().compareTo(b2.getIndex());
+                    }
+                });
+                ListIterator<Block> replaceIter = replaceBlockChian.listIterator();
+                while(replaceIter.hasNext()){
+                    blockController.addBlock(replaceIter.next());
+                }
+                broatcast(responseBlockChainMsg());
+            }
+//            //如果本地最后一块区块大于的hash 是 收到的最后一块区块的前一块
+//            if(lastestBlock.gethash().equals(lastestBlockReceived.getPreviousHash())){
+//                logger.info("将接收到的新区块加入到本地区块链中~");
+//                //将区块链存储到本地区块中 加入时需要验证
+//                if(blockController.addBlock(lastestBlockReceived)){
+//                    //加入并且验证通过 向所有连接节点广播这条消息
+//                    broatcast(responseLatestBlockMsg());
+//                    //否则收到的节点就1个创世区块的话
+//                }else if(receiverBlockChain.size() ==1){
+//                    logger.info("查询所有通讯节点上的区块链~");
+//                    //向所有连接节点发送查询
+//                    broatcast(queryBlockChainMsg());
+//                }else{
+//                    //用长的list替换 当前区块
+//                    blockController.replaceChain(receiverBlockChain);
+//                }
+//            }
         }else{
             logger.info("收到的区块链长度比本地小故抛弃~");
         }
     }
-
-
 
     public synchronized void handleMessage(WebSocket websocket,String msg,List<WebSocket> sockets)  {
         if(ObjectUtils.isEmpty(msg))
@@ -141,13 +207,33 @@ public class ProcessingServer {
                     handleWalletResponse(message.getContent());
                     break;
                 case RESPONSE_LATEST_BLOCK:
-                    handleBlockChainResponse(message.getContent(),sockets);
+                    handleLasteBlockChain(message.getContent(),sockets);
                     break;
 
             }
         }catch (Exception e){
             e.printStackTrace();
         }
+    }
+
+    private void handleLasteBlockChain(String content, List<WebSocket> sockets) {
+        if(!ObjectUtils.notEmpty(content))
+            return;
+        List<Block> receiverBlockChain = JSON.parseArray(content,Block.class);
+        Block lasreceivetBlock = receiverBlockChain.get(0);
+        //找到最后一块区块
+        Block lastestBlock= blockController.getLastestBlock();
+        if(lasreceivetBlock.getPreviousHash().equals(lastestBlock.gethash())) {
+            logger.info("将接收到的新区块加入到本地区块链中~");
+            //将区块链存储到本地区块中 加入时需要验证
+            if (blockController.addBlock(lasreceivetBlock)) {
+                broatcast(responseLatestBlockMsg());
+            }
+        }
+//        }else{
+//            //验证失败 请求获取全节点
+//            broatcast(queryBlockChainMsg());
+//        }
     }
 
     /**
@@ -181,7 +267,10 @@ public class ProcessingServer {
         if(!ObjectUtils.notEmpty(content))
             return;
        List<Transaction> txs =  JSON.parseArray(content,Transaction.class);
-        blockController.getAllTransation().addAll(txs);
+       if(!ObjectUtils.notEmpty( blockController.getAllTransation()))
+           blockController.setAllTransation(txs);
+       else
+           blockController.getAllTransation().addAll(txs);
     }
     /**
      * 从钱包中获取 钱包名字 和 地址
@@ -211,6 +300,8 @@ public class ProcessingServer {
         return JSON.toJSONString(new Message(RESPONSE_TRANSACTION,JSON.toJSONString(blockController.getAllTransation())));
     }
 
+
+
     /**
      *
      * @return 返回 blockchain 数组
@@ -231,7 +322,7 @@ public class ProcessingServer {
      *
      * @return  查询区整条块链
      */
-    private String queryBlockChainMsg() {
+    public String queryBlockChainMsg() {
         return JSON.toJSONString(new Message(QUERY_BLOCKCHAIN));
     }
     /**
@@ -252,6 +343,8 @@ public class ProcessingServer {
      * @return
      */
     public String queryWalletMsg() {return JSON.toJSONString(new Message(QUERY_WALLET)); }
+
+
 
     /**
      * 向服务端发送消息

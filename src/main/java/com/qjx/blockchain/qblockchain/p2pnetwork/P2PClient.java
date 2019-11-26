@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 public class P2PClient {
     public final static Logger logger = LoggerFactory.getLogger(P2PClient.class);
     private ProcessingServer processingServer;
-    public P2PClient(BlockController ps) {
+    public P2PClient(P2PController ps) {
         this.processingServer =new ProcessingServer(ps);
     }
 
@@ -32,17 +32,17 @@ public class P2PClient {
                 @Override
                 public void onOpen(ServerHandshake serverHandshake) {
                     processingServer.write(this, "客户端连接成功");
-                    //查询节点的上一个区块链
-                    processingServer.write(this,processingServer.queryLastestBlockMsg());
+                    //查询所有区块节点
+                    processingServer.write(this,processingServer.queryBlockChainMsg());
                     //查询交易消息
                     processingServer.write(this,processingServer.queryTransactionMsg());
                     //查询打包交易
                     processingServer.write(this,processingServer.queryPackedTransactionMsg());
                     //查询钱包
                     processingServer.write(this,processingServer.queryWalletMsg());
+
                     processingServer.getSockets().add(this);
                 }
-
                 @Override
                 public void onMessage(String msg) {
                     processingServer.handleMessage(this,msg,processingServer.getSockets());

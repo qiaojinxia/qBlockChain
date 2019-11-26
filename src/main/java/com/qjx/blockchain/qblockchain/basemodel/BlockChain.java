@@ -1,15 +1,23 @@
 package com.qjx.blockchain.qblockchain.basemodel;
 
 import com.alibaba.fastjson.JSON;
+import com.qjx.blockchain.qblockchain.blockprocessing.ProofOfWork;
 import com.qjx.blockchain.qblockchain.commonutils.FileUtil;
 
 
+import com.qjx.blockchain.qblockchain.commonutils.ObjectUtils;
+import com.qjx.blockchain.qblockchain.storedb.DbInitConfig;
+import com.qjx.blockchain.qblockchain.storedb.DbStore;
+import com.qjx.blockchain.qblockchain.storedb.LevelDbStoreImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.io.*;
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.zip.*;
 
@@ -18,7 +26,15 @@ import java.util.zip.*;
  **/
 public class BlockChain {
     public final static Logger logger = LoggerFactory.getLogger(BlockChain.class);
+    public final static DbInitConfig a;
+    public  static DbStore b = null;
     static {
+        a= new DbInitConfig();
+        try {
+            b = new LevelDbStoreImpl(a.levelDB());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         WALLETFILE = FileUtil.getConTextPath().replace("targ","");
 
     }
@@ -34,14 +50,12 @@ public class BlockChain {
      * 校验HASH的合法性
      *
      * @param hashcode 待检验的hashcode
-     * @param diffculty 挖矿难度
      * @return
      */
-    public static boolean isHashValid(String hashcode,Integer diffculty){
-        String prefix = repeat("0", diffculty);
-        if(hashcode.startsWith(prefix)){
+    public static boolean isHashValid(String hashcode,String nBits){
+        String a = ProofOfWork.unDecodeBits(nBits.replace("0x","")).replace("0x","");
+        if(new BigInteger(hashcode.replace("0x",""),16).compareTo(new BigInteger(a,16))<=-1)
             return true;
-        }
         return false;
 
     }
@@ -68,12 +82,11 @@ public class BlockChain {
                 this.blockchain = _buff;
 
             }
-
         }
         List<Block>_buff2 = new ArrayList<Block>();
         //检测区块链计算的工作量证明值是否通过验证
         for(int i =1;i<this.blockchain.size();i++){
-            if(!isHashValid(this.blockchain.get(i).gethash(),this.blockchain.get(i).getDifficulty())){
+            if(!isHashValid(this.blockchain.get(i).gethash(),this.blockchain.get(i).getnBits())){
                 for(int m =0;i<i;i++){
                     logger.info("检测到区块链工作证明无效!" + (this.blockchain.size() - i -1) +"部分!");
                     _buff2.add(this.blockchain.get(m));
@@ -95,14 +108,32 @@ public class BlockChain {
      * @param blockChain
      */
     public static void serializeBlockChain(List<Block> blockChain,String file){
-        String content = JSON.toJSONString(blockChain);
-        byte[] byteContent = compress(content.getBytes());
-        try{
-            writeFile(WALLETFILE,file,byteContent);
-        }catch (IOException e){
-            throw  new IllegalArgumentException("写入文件失败");
+//        public LinkedHashMap<String, String> iteratorDb() {
+//            DBIterator iterator = db.iterator();
+//            LinkedHashMap<String, String> linkedHashMap = new LinkedHashMap<>();
+//            while (iterator.hasNext()) {
+//                Map.Entry<byte[], byte[]> next = iterator.next();
+//                String key = Iq80DBFactory.asString(next.getKey());
+//                String value = Iq80DBFactory.asString(next.getValue());
+//                linkedHashMap.put(key, value);
+//            }
+//            return linkedHashMap;
+//        }
+
+
+        for(int i=0;i<blockChain.size();i++){
+            String content = JSON.toJSONString(blockChain.get(i));
+            b.put(blockChain.get(i).gethash(),content);
         }
-        logger.info("Blockchain saved successfully!");
+        b.put("lastblockHash",blockChain.get(blockChain.size()-1).gethash());
+//        String content = JSON.toJSONString(blockChain);
+//        byte[] byteContent = compress(content.getBytes());
+//        try{
+//            writeFile(WALLETFILE,file,byteContent);
+//        }catch (IOException e){
+//            throw  new IllegalArgumentException("写入文件失败");
+//        }
+//        logger.info("Blockchain saved successfully!");
     }
     public static void serializeBlockChain(List<Block> blockChain){
         serializeBlockChain(blockChain,"blockchain.data");
@@ -129,24 +160,43 @@ public class BlockChain {
      * @return
      */
     public static BlockChain loadBlockChain(String file)  {
-        String contet ="";
-        if(FileUtil.isFileExist(WALLETFILE +file))
-            try{
-                byte[] filebyte = readtToByte(WALLETFILE +file);
-                if(filebyte.length!=0) {
-                    filebyte = uncompress(filebyte);
-                    contet = new String(filebyte);
-                }
-            }catch (IOException | DataFormatException e){
-               throw  new IllegalArgumentException("读取区块链数据失败!");
-            }
-        //如果文件没有则初始化一个新的钱包
-        if(StringUtils.isEmpty(contet)){
+        String lastHash =b.get("lastblockHash");
+        if(!ObjectUtils.notEmpty(lastHash)){
             return new BlockChain();
-        }else{
-            List<Block>  blockchain = JSON.parseArray(contet,Block.class);
-            return new BlockChain(blockchain);
         }
+        List<Block> blockchain = new ArrayList<Block>();
+        Block block =null;
+        int statt =-1;
+
+        while(statt ==-1 || !block.isgenesisBlock()){
+            statt=0;
+            try{
+                block = JSON.parseObject(b.get(lastHash),Block.class);
+                lastHash = block.getPreviousHash();
+                blockchain.add(block);
+            }catch (Exception e){
+                logger.error("序列化数据库失败~");
+            }
+        }
+        Collections.sort(blockchain, new Comparator<Block>() {
+            @Override
+            public int compare(Block b1, Block b2) {
+                //从小到大排序
+                return b1.getIndex().compareTo(b2.getIndex());
+            }
+        });
+        return new BlockChain(blockchain);
+//        String contet ="";
+//        if(FileUtil.isFileExist(WALLETFILE +file))
+//            try{
+//                byte[] filebyte = readtToByte(WALLETFILE +file);
+//                if(filebyte.length!=0) {
+//                    filebyte = uncompress(filebyte);
+//                    contet = new String(filebyte);
+//                }
+//            }catch (IOException | DataFormatException e){
+//               throw  new IllegalArgumentException("读取区块链数据失败!");
+//            }
 
     }
     /**
@@ -154,6 +204,7 @@ public class BlockChain {
      * @return
      */
     public static BlockChain loadBlockChain(){
+
         //默认保存blockchain目录
         return loadBlockChain("blockchain.data");
     }

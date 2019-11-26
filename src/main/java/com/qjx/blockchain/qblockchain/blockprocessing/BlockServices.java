@@ -19,13 +19,20 @@ public class BlockServices {
     public void setBlockChain(List<Block> blockChain) {
         this.blockChain = blockChain;
     }
+    public boolean isAddblockChainEvent() {
+        return addblockChainEvent;
+    }
 
+    public void setAddblockChainEvent(boolean addblockChainEvent) {
+        this.addblockChainEvent = addblockChainEvent;
+    }
+
+    private volatile boolean addblockChainEvent = false;
 
     public final static Logger logger = LoggerFactory.getLogger(BlockServices.class);
 
     private List<Block> blockChain;
-    //挖矿难度
-    public final static Integer diffculty = 3;
+
     public BlockServices() {
         super();
     }
@@ -53,7 +60,7 @@ public class BlockServices {
         //设置交易的第一笔交易为奖励交易
         newblock.getData().set(0,Transaction.createCoinBase(recipient,memo));
         //随机数
-        Integer nonce = 1;
+        Long nonce = new Long(1);
         // 通过 将 前一个区块链 和 当前区块的json格式化字符串 和 一个随机数(工作证明) 拼接起来计算hash
         String hash = null;
         while (true) {
@@ -67,7 +74,7 @@ public class BlockServices {
             //以 2个0开头的hash 算出来正确的话 那恭喜你可能挖到矿了
             //00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048  这是第一块区块链的hash值
             // 大概有8个0 但现在要挖矿的话就可能达到20个0了 随着0的数量越来越多 每次瞎猜你能挖到的概率也是越来越低
-            if (BlockAlgorithm.isHashValid(hash,diffculty)) {
+            if (ProofOfWork.isHashValid(hash,newblock.getnBits())) {
                 //挖矿成功记录下时间
                 logger.info("=======计算结果正确,挖了" + nonce + "次 计算出hash值为:" + hash);
                 break;
@@ -77,6 +84,7 @@ public class BlockServices {
         return newblock;
     }
     public Block PackageBlock(List<Transaction> transpackage) {
+        Transaction.SUBSIDY = ProofOfWork.getAward(this.blockChain.size()-1);
         if (!ObjectUtils.notEmpty(transpackage)) {
             logger.info("Only reward blocks will be generated when Zero transactions are received!");
             transpackage = new ArrayList<Transaction>();
@@ -87,8 +95,9 @@ public class BlockServices {
             inintFirstblock();
         Block lastBlock = blockChain.get(blockChain.size() - 1);
         //根据上一个区块 来生成一个这个区块 用来挖矿
-        Block newblock = new Block(lastBlock.getIndex().add(new BigInteger("1")), lastBlock.gethash(), transpackage,diffculty, 1 ,System.currentTimeMillis());
+        Block newblock = new Block(lastBlock.getIndex().add(new BigInteger("1")), lastBlock.gethash(), transpackage, new Long(1) ,System.currentTimeMillis());
         newblock.setData(transpackage);
+        newblock.setnBits(ProofOfWork.GetNextWorkRequired(blockChain));
         return newblock;
     }
     public List<Block> getBlockChain() {
@@ -123,7 +132,7 @@ public class BlockServices {
         Map<String, Integer[]> allintx = new HashMap<String, Integer[]>();
         for (int c = 0; c < blockChain.size(); c++) {
             Block block = blockChain.get(c);
-            if (block.isGenesisBlock())
+            if (block.isgenesisBlock())
                 continue;
             for (int i = 0; i < block.getData().size(); i++) {
                 Transaction next = block.getData().get(i);

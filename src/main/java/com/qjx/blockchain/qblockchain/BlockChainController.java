@@ -4,7 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.qjx.blockchain.qblockchain.basemodel.*;
 import com.qjx.blockchain.qblockchain.blockprocessing.BlockServices;
 import com.qjx.blockchain.qblockchain.blockprocessing.TransactionsPool;
-import com.qjx.blockchain.qblockchain.p2pnetwork.BlockController;
+import com.qjx.blockchain.qblockchain.p2pnetwork.P2PController;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -34,7 +34,7 @@ public class BlockChainController {
         System.out.println(JSON.toJSONString(packageblock));
         wallet.newAccount("zhangsan");
         Block gen= blockServices.Mineral(wallet.getByWalletName("zhangsan").getAddress(),"caomaoboy",packageblock);
-        BlockController bc = new BlockController(blockServices,wallet,tp);
+        P2PController bc = new P2PController(blockServices,wallet,tp);
         bc.addBlock(gen);
         return blockServices.getBlockChainjson();
     }

@@ -23,11 +23,21 @@ public class ProcessingServer {
                     if(Main.tp.isAddEvent()){
                         broatcast(responseTransaction());
                         logger.info("监听到交易池添加时间准备全网广播!");
+                        try {
+                            Thread.sleep(3000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                         Main.tp.setAddEvent(false);
                     }
                     if(Main.blockServices.isAddblockChainEvent()){
                         logger.info("监听到区块更新添加时间准备全网广播!");
-                        broatcast(responseLatestBlockMsg());
+                        broatcast(responseBlockChainMsg());
+                        try {
+                            Thread.sleep(3000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                         Main.blockServices.setAddblockChainEvent(false);
                     }
                     try {

@@ -1,6 +1,6 @@
 ### 基于Java实现的比特币系统
 
-<img src="/Users/qiao/Downloads/4465704-bc5265fac9dadfb8.jpeg" alt="4465704-bc5265fac9dadfb8" style="zoom:51%;" />
+<img src="https://img-blog.csdnimg.cn/20191127173158702.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MTMxNTQ5Mg==" alt="4465704-bc5265fac9dadfb8" style="zoom:51%;" />
 
 实现比特币 的 go语言版本的比较多 java 并不多 所以就边研究边想实现一遍用java,但为什么大多数人用go来实现 其一就是比较快吧 用java感觉有些笨重,运行编译速度 也比不上go.
 
